@@ -1,19 +1,18 @@
-use std::{cmp::Ordering::*, process};
-
-use chrono::prelude::{Local, NaiveDate};
-use chrono::ParseResult;
+use anyhow::Result;
 use clap::Parser;
+use jiff::civil::Date;
+use jiff::Zoned;
 
 #[derive(Clone, Debug)]
 struct DateFormat(String);
 
 impl DateFormat {
-    fn parse(&self, date: &UnparsedDate) -> ParseResult<NaiveDate> {
-        NaiveDate::parse_from_str(&date.0, &self.0)
+    fn parse(&self, date: &UnparsedDate) -> Result<Date> {
+        Date::strptime(&self.0, &date.0).map_err(anyhow::Error::from)
     }
 
-    fn format(&self, date: &NaiveDate) -> String {
-        date.format(&self.0).to_string()
+    fn format(&self, date: &Date) -> String {
+        date.strftime(&self.0).to_string()
     }
 }
 
@@ -48,53 +47,41 @@ struct Args {
     verbose: bool,
 
     /// Date to calculate to.
-    first: UnparsedDate,
+    date_to: UnparsedDate,
 
     /// Date to calculate from (defaults to today's date).
-    second: Option<UnparsedDate>,
+    date_from: Option<UnparsedDate>,
 }
 
-fn quit_on_parse_failure(date: UnparsedDate, fmt: DateFormat) -> ! {
-    eprintln!("Could not parse date {:?} with format {:?}.", date.0, fmt.0);
-    process::exit(1);
-}
-
-fn make_message(first: String, second: String, adjective: &'static str, difference: u64) -> String {
-    let plural = if difference == 1 { "" } else { "s" };
-    format!("{first} is {difference} day{plural} {adjective} {second}.")
-}
-
-fn main() {
+fn main() -> Result<()> {
     let Args {
-        first,
-        second,
+        date_to,
+        date_from,
         verbose,
         fmt,
     } = Args::parse();
 
-    let Ok(first) = fmt.parse(&first) else { quit_on_parse_failure(first, fmt) };
+    let date_to = fmt.parse(&date_to)?;
+    let date_from = date_from
+        .map(|d| fmt.parse(&d))
+        .unwrap_or(Ok(Zoned::now().into()))?;
+    let duration = date_from.until(date_to)?;
 
-    let second = if let Some(second) = second {
-        match fmt.parse(&second) {
-            Ok(date) => date,
-            Err(_) => quit_on_parse_failure(second, fmt),
-        }
-    } else {
-        Local::now().date_naive()
-    };
-
-    let day_delta = (first - second).num_days();
     if !verbose {
-        println!("{}", day_delta);
+        println!("{}", duration.get_days());
     } else {
-        let first = fmt.format(&first);
-        let second = fmt.format(&second);
-        let abs = day_delta.unsigned_abs();
-        let message = match day_delta.cmp(&0) {
-            Less => make_message(first, second, "before", abs),
-            Equal => format!("Both dates are the same ({first})."),
-            Greater => make_message(first, second, "after", abs),
+        let dt = fmt.format(&date_to);
+        let df = fmt.format(&date_from);
+        let days = duration.get_days();
+        let abs = days.unsigned_abs();
+        let message: String = match days {
+            ..=-2 => format!("{dt} is {abs} days before {df}"),
+            -1 => format!("{dt} is 1 day before {df}"),
+            0 => format!("Both dates are the same ({df})"),
+            1 => format!("{dt} is 1 day after {df}"),
+            2.. => format!("{dt} is {abs} days after {df}"),
         };
         println!("{message}");
     }
+    Ok(())
 }

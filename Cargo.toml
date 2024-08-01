@@ -8,5 +8,6 @@ description = "Utility to print the number of days between two dates"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-chrono = "0.4.23"
+anyhow = "1.0.86"
 clap = { version = "4.1.8", features = ["derive"] }
+jiff = "0.1.3"
