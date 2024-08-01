@@ -33,7 +33,7 @@ impl From<String> for UnparsedDate {
 
 /// Calculate the number of days between two dates.
 ///
-/// A negative number (when not using verbose mode) means that FIRST is before SECOND.
+/// A negative number (when not using verbose mode) means that DATE_TO is before DATE_FROM.
 ///
 /// The dates are assumed to be in the same time zone.
 #[derive(Parser, Debug)]
